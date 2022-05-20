@@ -1,8 +1,8 @@
 extern crate argparse;
 
 use regex::Regex;
-use std::collections::HashMap;
 use std::fs::File;
+use std::collections::HashMap;
 use std::io::{ BufReader, prelude::* };
 use argparse::{ArgumentParser, StoreTrue, Store};
 
@@ -12,25 +12,38 @@ fn check_url(url: &str)-> bool {
     return _ret;
 }
 
-// async fn send_request(url: String, word: String) -> Result<(), Box<dyn std::error::Error>> {
-//     println!("HERE");
-//     let final_url: String = url.replace("FUZZ", &word);
-//     let resp = reqwest::get(final_url).await?.json::<HashMap<String,String>>().await?;
-//     println!("{:#?}", resp);
-//     Ok(())
-// }
+async fn send_request(url: String, word: String) -> Result<(), Box<dyn std::error::Error>> {
+    let final_url: String = url.replace("FUZZ", &word.trim());
+    let resp = reqwest::get(final_url).await?.json::<HashMap<String, String>>().await?;
+    println!("{:#?}", resp);
+    Ok(())
+}
 
-fn engine(url: String, wordlist: String, threads: u32){
+async fn engine(url: String, wordlist: String, threads: u32){
     let file = File::open(wordlist).expect("Can't open file");
-    let reader = BufReader::new(file);
-
-    for line in reader.lines() {
-        let content = line.unwrap();
-        println!("{}",content);
+    let mut reader = BufReader::new(file);
+    let mut line = String::new();
+    let mut cnt: u32 = 0;
+    loop {
+        match reader.read_line(&mut line) {
+            Ok(0) => {
+                println!("Total words : {cnt}");
+                break;
+            }
+            Ok(_) => {
+                cnt += 1;
+                send_request(url.clone(), line.clone()).await;
+                line.clear();
+            }
+            Err(err) => {
+                continue;
+            }
+        }
     }
 }
 
-fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
     let mut verbose: bool = false;
     let mut url: String = "".to_string();
     let mut thread: u32 = 0;
@@ -48,6 +61,6 @@ fn main() -> std::io::Result<()> {
         println!("Invalid url: {url}");
         std::process::exit(1);
     }
-    engine(url, wordlist, thread);
+    engine(url, wordlist, thread).await;
     Ok(())
 }
